@@ -141,7 +141,7 @@ async def main():
     aleykumselam['myname'] = myname
 
     global broadcast_domain
-    broadcast_domain = await aioconsole.ainput('Enter broadcast domain: ')
+    broadcast_domain = await aioconsole.ainput('Enter broadcast domain (e.g. 192.168.1): ')
 
     listen_task = asyncio.create_task(listen())
     hello_task = asyncio.create_task(send_hello())
