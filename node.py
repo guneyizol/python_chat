@@ -2,7 +2,7 @@ import asyncio
 import signal
 import sys
 import json
-import nmap
+
 
 myname = 'name'
 myip = '192.168.1.7'
