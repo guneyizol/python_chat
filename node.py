@@ -24,16 +24,16 @@ async def handle_connection(reader, writer):
     try:
         data = await reader.readline()
         message = json.loads(data.decode().rstrip())
-        if message.get('type') == 'hello':
-            addr = writer.get_extra_info('peername')
+        addr = writer.get_extra_info('peername')
 
-            ip, _ = addr
+        ip, _ = addr
+        if message.get('type') == 'hello':
             peers[message['myname']] = ip
 
             writer.write((json.dumps(aleykumselam) + '\n').encode())
             await writer.drain()
         elif message.get('type') == 'message':
-            print(message['content'])
+            print(f"{list(peers.keys())[list(peers.values()).index(ip)]}: {message['content']}")
     except:
         pass
     finally:
@@ -82,12 +82,12 @@ async def send_hello():
 
 
 async def send_message():
-    ip = await aioconsole.ainput('enter recipient IP: ')
+    name = await aioconsole.ainput('enter recipient name: ')
     message = await aioconsole.ainput('enter your message (end it with a newline): ')
 
     writer = None
     try:
-        _, writer = await asyncio.wait_for(asyncio.open_connection(ip, 12345), timeout=5)
+        _, writer = await asyncio.wait_for(asyncio.open_connection(peers[name], 12345), timeout=5)
 
         writer.write((json.dumps({
             'type': 'message',
@@ -97,6 +97,7 @@ async def send_message():
         await writer.drain()
     except ConnectionRefusedError:
         print('The peer is offline. Your message was not delivered.')
+        del peers[name]
     finally:
         if writer:
             writer.close()
