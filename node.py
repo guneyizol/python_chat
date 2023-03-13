@@ -95,6 +95,8 @@ async def send_message():
             'myname': myname
         }) + '\n').encode())
         await writer.drain()
+    except ConnectionRefusedError:
+        print('The peer is offline. Your message was not delivered.')
     finally:
         if writer:
             writer.close()
