@@ -60,8 +60,6 @@ async def get_aleykumselam(ip):
 
         if message['type'] == 'aleykumselam':
             peers[message['myname']] = ip
-        
-        print(peers)
     except:
         pass  # ignore any errors and go on
     finally:
