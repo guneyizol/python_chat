@@ -74,7 +74,7 @@ async def send_hello():
 
         for i in range(2, 256):
             ip = f'{broadcast_domain}.{i}'
-            if ip != myip:
+            if ip != myip and ip not in peers.values():
                 hellos.append(get_aleykumselam(ip))
         
         await asyncio.gather(*hellos)
