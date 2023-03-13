@@ -9,13 +9,11 @@ myname = 'name'
 myip = '192.168.1.7'
 
 aleykumselam = {
-    'type': 'aleykumselam',
-    'myname': myname
+    'type': 'aleykumselam'
 }
 
 hello = {
-    'type': 'hello',
-    'myname': myname
+    'type': 'hello'
 }
 
 broadcast_domain = '192.168.1'
@@ -141,6 +139,11 @@ async def main():
 
     global myname
     myname = await aioconsole.ainput('Enter your name: ')
+    hello['myname'] = myname
+    aleykumselam['myname'] = myname
+
+    global broadcast_domain
+    broadcast_domain = await aioconsole.ainput('Enter broadcast domain: ')
 
     listen_task = asyncio.create_task(listen())
     hello_task = asyncio.create_task(send_hello())
