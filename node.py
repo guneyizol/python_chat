@@ -2,6 +2,7 @@ import asyncio
 import signal
 import sys
 import json
+import aioconsole
 
 
 myname = 'name'
@@ -33,6 +34,8 @@ async def handle_connection(reader, writer):
 
             writer.write((json.dumps(aleykumselam) + '\n').encode())
             await writer.drain()
+        elif message.get('type') == 'message':
+            print(message['content'])
     except:
         pass
     finally:
@@ -82,6 +85,48 @@ async def send_hello():
         await asyncio.sleep(2)
 
 
+async def send_message():
+    ip = await aioconsole.ainput('enter recipient IP: ')
+    message = await aioconsole.ainput('enter your message (end it with a newline): ')
+
+    writer = None
+    try:
+        _, writer = await asyncio.wait_for(asyncio.open_connection(ip, 12345), timeout=5)
+
+        writer.write((json.dumps({
+            'type': 'message',
+            'content': message,
+            'myname': myname
+        }) + '\n').encode())
+        await writer.drain()
+    finally:
+        if writer:
+            writer.close()
+            await writer.wait_closed()
+
+
+async def control():
+    key = await aioconsole.ainput('To send a message, press M\n'
+                                  'To see the available recipient IPs, press A\n'
+                                  'To exit, press E\n')
+    while True:
+        key = key.lower()
+        if key == 'm':
+            if not peers:
+                await aioconsole.aprint('There are no available recipients. Try later.')
+            else:
+                await asyncio.create_task(send_message())
+        elif key == 'a':
+            if not peers:
+                await aioconsole.aprint('There are no available recipients.')
+            for name, ip in peers.items():
+                await aioconsole.aprint(f'{name}: {ip}')
+        elif key == 'e':
+            sys.exit(0)
+
+        key = await aioconsole.ainput()
+
+
 def keyboardInterruptHandler():
     print('\nexiting')
     sys.exit(0)
@@ -91,9 +136,16 @@ async def main():
     loop = asyncio.get_running_loop()
     loop.add_signal_handler(signal.SIGINT, keyboardInterruptHandler)
 
+    global myip
+    myip = await aioconsole.ainput('Enter your ip: ')
+
+    global myname
+    myname = await aioconsole.ainput('Enter your name: ')
+
     listen_task = asyncio.create_task(listen())
     hello_task = asyncio.create_task(send_hello())
-    await asyncio.gather(listen_task, hello_task)
+    control_task = asyncio.create_task(control())
+    await asyncio.gather(listen_task, hello_task, control_task)
 
 
 asyncio.run(main())
