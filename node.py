@@ -34,10 +34,14 @@ class BroadcastProtocol(asyncio.DatagramProtocol):
 
     def datagram_received(self, data, addr):
         print('data received:', data, addr)
-        # message = json.loads(data.decode().rstrip())
+        try:
+            message = json.loads(data.decode().rstrip())
 
-        # if message['type'] == 'aleykumselam':
-        #     peers[message['myname']] = addr
+            if message['type'] == 'aleykumselam':
+                peers[message['myname']] = addr[0]
+            print(peers)
+        except:
+            pass
 
     def broadcast(self):
         self.transport.sendto((json.dumps(hello) + '\n').encode(), ('255.255.255.255', 12345))
