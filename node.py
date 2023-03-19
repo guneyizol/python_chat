@@ -35,7 +35,6 @@ class BroadcastProtocol(asyncio.DatagramProtocol):
         self.loop.create_task(self.handle_income_packet(data, addr))
     
     async def handle_income_packet(self, data, addr):
-        print('data received:', data, addr)
         writer = None
         try:
             message = json.loads(data.decode().rstrip())
@@ -48,7 +47,6 @@ class BroadcastProtocol(asyncio.DatagramProtocol):
 
                     writer.write((json.dumps(aleykumselam) + '\n').encode())
                     await writer.drain()
-            print(peers)
         except:
             pass
         finally:
@@ -75,7 +73,6 @@ async def handle_connection(reader, writer):
         if message.get('type') == 'message':
             print(f"{peers[ip]}: {message['content']}")
 
-        print(peers)
     except:
         pass
     finally:
