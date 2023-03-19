@@ -3,6 +3,7 @@ import signal
 import sys
 import json
 import aioconsole
+import socket
 
 
 myname = 'name'
@@ -20,6 +21,29 @@ broadcast_domain = '192.168.1'
 
 peers = {}
 
+class BroadcastProtocol(asyncio.DatagramProtocol):
+    def __init__(self, *, loop = None):
+        self.loop = asyncio.get_event_loop() if loop is None else loop
+
+    def connection_made(self, transport: asyncio.transports.DatagramTransport):
+        print('started')
+        self.transport = transport
+        sock = transport.get_extra_info("socket")
+        sock.setsockopt(socket.SOL_SOCKET, socket.SO_BROADCAST, 1)
+        self.broadcast()
+
+    def datagram_received(self, data, addr):
+        print('data received:', data, addr)
+        # message = json.loads(data.decode().rstrip())
+
+        # if message['type'] == 'aleykumselam':
+        #     peers[message['myname']] = addr
+
+    def broadcast(self):
+        self.transport.sendto((json.dumps(hello) + '\n').encode(), ('255.255.255.255', 12345))
+        self.loop.call_later(5, self.broadcast)
+
+
 async def handle_connection(reader, writer):
     try:
         data = await reader.readline()
@@ -27,13 +51,13 @@ async def handle_connection(reader, writer):
         addr = writer.get_extra_info('peername')
 
         ip, _ = addr
-        if message.get('type') == 'hello':
-            peers[message['myname']] = ip
+        # if message.get('type') == 'hello':
+        #     peers[ip] = message['myname']
 
-            writer.write((json.dumps(aleykumselam) + '\n').encode())
-            await writer.drain()
-        elif message.get('type') == 'message':
-            print(f"{list(peers.keys())[list(peers.values()).index(ip)]}: {message['content']}")
+        #     writer.write((json.dumps(aleykumselam) + '\n').encode())
+        #     await writer.drain()
+        if message.get('type') == 'message':
+            print(f"{peers[ip]}: {message['content']}")
     except:
         pass
     finally:
@@ -46,48 +70,50 @@ async def listen():
     await server.serve_forever()
 
 
-async def get_aleykumselam(ip):
-    writer = None
-    try:
-        reader, writer = await asyncio.wait_for(asyncio.open_connection(ip, 12345), timeout=5)
+# async def get_aleykumselam(ip):
+#     writer = None
+#     try:
+#         reader, writer = await asyncio.wait_for(asyncio.open_connection(ip, 12345), timeout=5)
 
-        writer.write((json.dumps(hello) + '\n').encode())
-        await writer.drain()
+#         writer.write((json.dumps(hello) + '\n').encode())
+#         await writer.drain()
 
-        data = await asyncio.wait_for(reader.readline(), timeout=5)
+#         data = await asyncio.wait_for(reader.readline(), timeout=5)
 
-        message = json.loads(data.decode().rstrip())
+#         message = json.loads(data.decode().rstrip())
 
-        if message['type'] == 'aleykumselam':
-            peers[message['myname']] = ip
-    except:
-        pass  # ignore any errors and go on
-    finally:
-        if writer:
-            writer.close()
-            await writer.wait_closed()
+#         if message['type'] == 'aleykumselam':
+#             peers[message['myname']] = ip
+#     except:
+#         pass  # ignore any errors and go on
+#     finally:
+#         if writer:
+#             writer.close()
+#             await writer.wait_closed()
         
         
-async def send_hello():
-    while True:
-        hellos = []
+# async def send_hello():
+#         # hellos = []
 
-        for i in range(2, 256):
-            ip = f'{broadcast_domain}.{i}'
-            if ip != myip and ip not in peers.values():
-                hellos.append(get_aleykumselam(ip))
+#         # for i in range(2, 256):
+#         #     ip = f'{broadcast_domain}.{i}'
+#         #     if ip != myip and ip not in peers.values():
+#         #         hellos.append(get_aleykumselam(ip))
         
-        await asyncio.gather(*hellos)
-        await asyncio.sleep(2)
+#         # await asyncio.gather(*hellos)
+#         # await asyncio.sleep(2)
+
+#     loop = asyncio.get_running_loop()
+#     await loop.create_datagram_endpoint()
 
 
 async def send_message():
-    name = await aioconsole.ainput('enter recipient name: ')
+    ip = await aioconsole.ainput('enter recipient ip: ')
     message = await aioconsole.ainput('enter your message (end it with a newline): ')
 
     writer = None
     try:
-        _, writer = await asyncio.wait_for(asyncio.open_connection(peers[name], 12345), timeout=5)
+        _, writer = await asyncio.wait_for(asyncio.open_connection(ip, 12345), timeout=5)
 
         writer.write((json.dumps({
             'type': 'message',
@@ -97,7 +123,7 @@ async def send_message():
         await writer.drain()
     except ConnectionRefusedError:
         print('The peer is offline. Your message was not delivered.')
-        del peers[name]
+        del peers[ip]
     finally:
         if writer:
             writer.close()
@@ -147,7 +173,10 @@ async def main():
     broadcast_domain = await aioconsole.ainput('Enter broadcast domain (e.g. 192.168.1): ')
 
     listen_task = asyncio.create_task(listen())
-    hello_task = asyncio.create_task(send_hello())
+    hello_task = asyncio.create_task(loop.create_datagram_endpoint(
+        lambda: BroadcastProtocol(loop=loop),
+        local_addr=(myip, 1234)
+    ))
     control_task = asyncio.create_task(control())
     await asyncio.gather(listen_task, hello_task, control_task)
 
