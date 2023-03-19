@@ -17,8 +17,6 @@ hello = {
     'type': 'hello'
 }
 
-broadcast_domain = '192.168.1'
-
 peers = {}
 
 class BroadcastProtocol(asyncio.DatagramProtocol):
@@ -172,9 +170,6 @@ async def main():
     myname = await aioconsole.ainput('Enter your name: ')
     hello['myname'] = myname
     aleykumselam['myname'] = myname
-
-    global broadcast_domain
-    broadcast_domain = await aioconsole.ainput('Enter broadcast domain (e.g. 192.168.1): ')
 
     listen_task = asyncio.create_task(listen())
     hello_task = asyncio.create_task(loop.create_datagram_endpoint(
