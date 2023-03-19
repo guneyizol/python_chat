@@ -32,8 +32,7 @@ class BroadcastProtocol(asyncio.DatagramProtocol):
         self.broadcast()
 
     def datagram_received(self, data, addr):
-        loop = asyncio.get_event_loop()
-        loop.create_task(self.handle_income_packet(data, addr))
+        self.loop.create_task(self.handle_income_packet(data, addr))
     
     async def handle_income_packet(self, data, addr):
         print('data received:', data, addr)
@@ -187,7 +186,8 @@ async def main():
     aleykumselam['myname'] = myname
 
     global broadcast_domain
-    broadcast_domain = await aioconsole.ainput('Enter the broadcast domain (e.g. 192.168.1): ')
+    bd = await aioconsole.ainput('Enter the broadcast domain (default is 192.168.1): ')
+    broadcast_domain = bd if bd else '192.168.1'
 
     listen_task = asyncio.create_task(listen())
     hello_task = asyncio.create_task(loop.create_datagram_endpoint(
