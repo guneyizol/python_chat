@@ -30,7 +30,7 @@ class BroadcastProtocol(asyncio.DatagramProtocol):
         sock.setsockopt(socket.SOL_SOCKET, socket.SO_BROADCAST, 1)
         self.broadcast()
 
-    def datagram_received(self, data, addr):
+    async def datagram_received(self, data, addr):
         print('data received:', data, addr)
         writer = None
         try:
