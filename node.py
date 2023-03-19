@@ -57,6 +57,8 @@ class BroadcastProtocol(asyncio.DatagramProtocol):
                 await writer.wait_closed()
 
     def broadcast(self):
+        global peers
+        peers = {}
         self.transport.sendto((json.dumps(hello) + '\n').encode(), (f'{broadcast_domain}.255', 12345))
         self.loop.call_later(5, self.broadcast)
 
