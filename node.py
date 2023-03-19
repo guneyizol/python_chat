@@ -86,43 +86,6 @@ async def listen():
     await server.serve_forever()
 
 
-# async def get_aleykumselam(ip):
-#     writer = None
-#     try:
-#         reader, writer = await asyncio.wait_for(asyncio.open_connection(ip, 12345), timeout=5)
-
-#         writer.write((json.dumps(hello) + '\n').encode())
-#         await writer.drain()
-
-#         data = await asyncio.wait_for(reader.readline(), timeout=5)
-
-#         message = json.loads(data.decode().rstrip())
-
-#         if message['type'] == 'aleykumselam':
-#             peers[message['myname']] = ip
-#     except:
-#         pass  # ignore any errors and go on
-#     finally:
-#         if writer:
-#             writer.close()
-#             await writer.wait_closed()
-        
-        
-# async def send_hello():
-#         # hellos = []
-
-#         # for i in range(2, 256):
-#         #     ip = f'{broadcast_domain}.{i}'
-#         #     if ip != myip and ip not in peers.values():
-#         #         hellos.append(get_aleykumselam(ip))
-        
-#         # await asyncio.gather(*hellos)
-#         # await asyncio.sleep(2)
-
-#     loop = asyncio.get_running_loop()
-#     await loop.create_datagram_endpoint()
-
-
 async def send_message():
     ip = await aioconsole.ainput('enter recipient ip: ')
     message = await aioconsole.ainput('enter your message (end it with a newline): ')
