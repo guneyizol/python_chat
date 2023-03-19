@@ -155,7 +155,7 @@ async def main():
     listen_task = asyncio.create_task(listen())
     hello_task = asyncio.create_task(loop.create_datagram_endpoint(
         lambda: BroadcastProtocol(loop=loop),
-        local_addr=(f'{broadcast_domain}.255', 12345),
+        local_addr=(myip, 12345),
         allow_broadcast=True
     ))
     control_task = asyncio.create_task(control())
