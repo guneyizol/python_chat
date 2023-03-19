@@ -8,6 +8,7 @@ import socket
 
 myname = 'name'
 myip = '192.168.1.7'
+broadcast_domain = '192.168.1'
 
 aleykumselam = {
     'type': 'aleykumselam'
@@ -52,7 +53,7 @@ class BroadcastProtocol(asyncio.DatagramProtocol):
                 await writer.wait_closed()
 
     def broadcast(self):
-        self.transport.sendto((json.dumps(hello) + '\n').encode(), ('192.168.1.255', 12345))
+        self.transport.sendto((json.dumps(hello) + '\n').encode(), (f'{broadcast_domain}.255', 12345))
         self.loop.call_later(5, self.broadcast)
 
 
@@ -67,7 +68,7 @@ async def handle_connection(reader, writer):
             peers[ip] = message['myname']
         if message.get('type') == 'message':
             print(f"{peers[ip]}: {message['content']}")
-            
+
         print(peers)
     except:
         pass
@@ -180,10 +181,13 @@ async def main():
     hello['myname'] = myname
     aleykumselam['myname'] = myname
 
+    global broadcast_domain
+    broadcast_domain = await aioconsole.ainput('Enter the broadcast domain (e.g. 192.168.1): ')
+
     listen_task = asyncio.create_task(listen())
     hello_task = asyncio.create_task(loop.create_datagram_endpoint(
         lambda: BroadcastProtocol(loop=loop),
-        local_addr=('192.168.1.255', 12345),
+        local_addr=(f'{broadcast_domain}.255', 12345),
         allow_broadcast=True
     ))
     control_task = asyncio.create_task(control())
