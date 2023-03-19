@@ -32,20 +32,27 @@ class BroadcastProtocol(asyncio.DatagramProtocol):
 
     def datagram_received(self, data, addr):
         print('data received:', data, addr)
+        writer = None
         try:
             message = json.loads(data.decode().rstrip())
 
-            if message['type'] == 'aleykumselam':
+            if message['type'] == 'hello':
                 peers[message['myname']] = addr[0]
-            elif message['type'] == 'hello':
-                self.transport.sendto((json.dumps(aleykumselam) + '\n').encode(), ('255.255.255.255', 12345))
-                peers[message['myname']] = addr[0]
+
+                _, writer = await asyncio.wait_for(asyncio.open_connection(*addr), timeout=5)
+
+                writer.write((json.dumps(aleykumselam) + '\n').encode())
+                await writer.drain()
             print(peers)
         except:
             pass
+        finally:
+            if writer:
+                writer.close()
+                await writer.wait_closed()
 
     def broadcast(self):
-        self.transport.sendto((json.dumps(hello) + '\n').encode(), ('255.255.255.255', 12345))
+        self.transport.sendto((json.dumps(hello) + '\n').encode(), ('192.168.1.255', 12345))
         self.loop.call_later(5, self.broadcast)
 
 
@@ -56,13 +63,12 @@ async def handle_connection(reader, writer):
         addr = writer.get_extra_info('peername')
 
         ip, _ = addr
-        # if message.get('type') == 'hello':
-        #     peers[ip] = message['myname']
-
-        #     writer.write((json.dumps(aleykumselam) + '\n').encode())
-        #     await writer.drain()
+        if message.get('type') == 'aleykumselam':
+            peers[ip] = message['myname']
         if message.get('type') == 'message':
             print(f"{peers[ip]}: {message['content']}")
+            
+        print(peers)
     except:
         pass
     finally:
@@ -177,7 +183,8 @@ async def main():
     listen_task = asyncio.create_task(listen())
     hello_task = asyncio.create_task(loop.create_datagram_endpoint(
         lambda: BroadcastProtocol(loop=loop),
-        local_addr=('255.255.255.255', 12345)
+        local_addr=('192.168.1.255', 12345),
+        allow_broadcast=True
     ))
     control_task = asyncio.create_task(control())
     await asyncio.gather(listen_task, hello_task, control_task)
