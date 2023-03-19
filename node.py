@@ -39,6 +39,7 @@ class BroadcastProtocol(asyncio.DatagramProtocol):
                 peers[message['myname']] = addr[0]
             elif message['type'] == 'hello':
                 self.transport.sendto((json.dumps(aleykumselam) + '\n').encode(), ('255.255.255.255', 12345))
+                peers[message['myname']] = addr[0]
             print(peers)
         except:
             pass
