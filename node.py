@@ -31,19 +31,24 @@ class BroadcastProtocol(asyncio.DatagramProtocol):
         sock.setsockopt(socket.SOL_SOCKET, socket.SO_BROADCAST, 1)
         self.broadcast()
 
-    async def datagram_received(self, data, addr):
+    def datagram_received(self, data, addr):
+        loop = asyncio.get_event_loop()
+        loop.create_task(self.handle_income_packet(data, addr))
+    
+    async def handle_income_packet(self, data, addr):
         print('data received:', data, addr)
         writer = None
         try:
             message = json.loads(data.decode().rstrip())
 
             if message['type'] == 'hello':
-                peers[message['myname']] = addr[0]
+                if addr[0] != myip:
+                    peers[addr[0]] = message['myname']
 
-                _, writer = await asyncio.wait_for(asyncio.open_connection(*addr), timeout=5)
+                    _, writer = await asyncio.wait_for(asyncio.open_connection(*addr), timeout=5)
 
-                writer.write((json.dumps(aleykumselam) + '\n').encode())
-                await writer.drain()
+                    writer.write((json.dumps(aleykumselam) + '\n').encode())
+                    await writer.drain()
             print(peers)
         except:
             pass
