@@ -111,7 +111,7 @@ async def send_message():
 async def control():
     key = await aioconsole.ainput('To send a message, press M\n'
                                   'To see the available recipient IPs, press A\n'
-                                  'To exit, press E\n')
+                                  'To exit, press Ctrl+C\n')
     while True:
         key = key.lower()
         if key == 'm':
@@ -124,8 +124,6 @@ async def control():
                 await aioconsole.aprint('There are no available recipients.')
             for name, ip in peers.items():
                 await aioconsole.aprint(f'{name}: {ip}')
-        elif key == 'e':
-            sys.exit(0)
 
         key = await aioconsole.ainput()
 
