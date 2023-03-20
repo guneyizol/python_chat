@@ -58,7 +58,7 @@ class BroadcastProtocol(asyncio.DatagramProtocol):
         global peers
         peers = {}
         self.transport.sendto((json.dumps(hello) + '\n').encode(), (f'{broadcast_domain}.255', 12345))
-        self.loop.call_later(5, self.broadcast)
+        self.loop.call_later(60, self.broadcast)
 
 
 async def handle_connection(reader, writer):
