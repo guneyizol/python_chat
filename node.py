@@ -1,4 +1,5 @@
 import asyncio
+import base64
 import signal
 import sys
 import json
@@ -16,6 +17,14 @@ aleykumselam = {
 
 hello = {
     'type': 'hello'
+}
+
+file = {
+    'type': 4
+}
+
+ack = {
+    'type': 5
 }
 
 peers = {}
@@ -61,18 +70,62 @@ class BroadcastProtocol(asyncio.DatagramProtocol):
         self.loop.call_later(60, self.broadcast)
 
 
+class SendFileProtocol:
+    def __init__(self, message, on_con_lost):
+        self.message = message
+        self.on_con_lost = on_con_lost
+
+    def connection_made(self, transport):
+        self.transport = transport
+        self.send_file()
+
+    def datagram_received(self, data, addr):
+        message = json.loads(data.decode())
+        
+        print(f'received message of type {message["type"]} from {addr[0]}')
+
+        self.transport.close()
+    
+    def send_file(self):
+        self.transport.sendto((json.dumps(self.message)).encode())
+
+    def connection_lost(self, exc):
+        print("Connection closed")
+        self.on_con_lost.set_result(True)
+
+
+class ReceiveFileProtocol:
+    def connection_made(self, transport):
+        self.transport = transport
+
+    def datagram_received(self, data, addr):
+        try:
+            message = json.loads(data.decode())
+
+            f = open(message['name'], 'wb')
+            f.write(base64.b64decode(message.body))
+            f.close()
+
+            print(f'{peers[addr[0]]} sent the file {message["name"]}')
+
+            self.transport.sendto(json.dumps(ack.encode()), addr)
+        except:
+            pass
+        
+
+
 async def handle_connection(reader, writer):
     try:
         data = await reader.readline()
-        message = json.loads(data.decode().rstrip())
-        addr = writer.get_extra_info('peername')
 
-        ip, _ = addr
+        message = json.loads(data.decode().rstrip())
+
+        ip, _ = writer.get_extra_info('peername')
+
         if message.get('type') == 'aleykumselam':
             peers[ip] = message['myname']
         if message.get('type') == 'message':
             print(f"{peers[ip]}: {message['content']}")
-
     except:
         pass
     finally:
@@ -85,9 +138,17 @@ async def listen():
     await server.serve_forever()
 
 
+async def receive_file():
+    loop = asyncio.get_running_loop()
+
+    transport, protocol = await loop.create_datagram_endpoint(
+        lambda: ReceiveFileProtocol(),
+        local_addr=(myip, 12345))
+
+
 async def send_message():
-    ip = await aioconsole.ainput('enter recipient ip: ')
-    message = await aioconsole.ainput('enter your message (end it with a newline): ')
+    ip = await aioconsole.ainput('Enter recipient IP: ')
+    message = await aioconsole.ainput('Enter your message (end it with a newline): ')
 
     writer = None
     try:
@@ -108,8 +169,36 @@ async def send_message():
             await writer.wait_closed()
 
 
+async def send_file():
+    filename = await aioconsole.ainput('Enter the filename: ')
+    ip = await aioconsole.ainput('Enter recipient IP: ')
+
+    try:
+        f = open(filename, 'b')
+        data = f.read()
+
+        file['name'] = filename
+        file['body'] = str(base64.b64encode(data))[2:-1]
+
+        loop = asyncio.get_running_loop()
+
+        on_con_lost = loop.create_future()
+
+        transport, protocol = await loop.create_datagram_endpoint(
+            lambda: SendFileProtocol(file, on_con_lost),
+            remote_addr=(ip, 12345))
+
+        try:
+            await on_con_lost
+        finally:
+            transport.close()
+    except OSError:
+        print('Could not open the file. Make sure the file name is correct.')
+
+
 async def control():
     key = await aioconsole.ainput('To send a message, press M\n'
+                                  'To send a file, press F\n'
                                   'To see the available recipient IPs, press A\n'
                                   'To exit, press Ctrl+C\n')
     while True:
@@ -119,6 +208,11 @@ async def control():
                 await aioconsole.aprint('There are no available recipients. Try later.')
             else:
                 await asyncio.create_task(send_message())
+        elif key == 'f':
+            if not peers:
+                await aioconsole.aprint('There are no available recipients. Try later.')
+            else:
+                await asyncio.create_task(send_file())
         elif key == 'a':
             if not peers:
                 await aioconsole.aprint('There are no available recipients.')
@@ -150,13 +244,14 @@ async def main():
     broadcast_domain = bd if bd else '192.168.1'
 
     listen_task = asyncio.create_task(listen())
+    receive_file_task = asyncio.create_task(receive_file())
     hello_task = asyncio.create_task(loop.create_datagram_endpoint(
         lambda: BroadcastProtocol(loop=loop),
         local_addr=('0.0.0.0', 12345),
         allow_broadcast=True
     ))
     control_task = asyncio.create_task(control())
-    await asyncio.gather(listen_task, hello_task, control_task)
+    await asyncio.gather(listen_task, receive_file_task, hello_task, control_task)
 
 
 asyncio.run(main())
