@@ -228,14 +228,13 @@ async def main():
     broadcast_domain = bd if bd else '192.168.1'
 
     listen_task = asyncio.create_task(listen())
-    receive_file_task = asyncio.create_task(receive_file())
     hello_task = asyncio.create_task(loop.create_datagram_endpoint(
         lambda: BroadcastProtocol(loop=loop),
         local_addr=('0.0.0.0', 12345),
         allow_broadcast=True
     ))
     control_task = asyncio.create_task(control())
-    await asyncio.gather(listen_task, receive_file_task, hello_task, control_task)
+    await asyncio.gather(listen_task, hello_task, control_task)
 
 
 asyncio.run(main())
