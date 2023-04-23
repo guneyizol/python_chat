@@ -34,7 +34,6 @@ class BroadcastProtocol(asyncio.DatagramProtocol):
         self.loop = asyncio.get_event_loop() if loop is None else loop
 
     def connection_made(self, transport: asyncio.transports.DatagramTransport):
-        print('started')
         self.transport = transport
         sock = transport.get_extra_info("socket")
         sock.setsockopt(socket.SOL_SOCKET, socket.SO_BROADCAST, 1)
@@ -81,7 +80,7 @@ class SendFileProtocol:
 
     def datagram_received(self, data, addr):
         message = json.loads(data.decode())
-        
+
         print(f'received message of type {message["type"]} from {addr[0]}')
 
         self.transport.close()
@@ -143,7 +142,7 @@ async def receive_file():
 
     transport, protocol = await loop.create_datagram_endpoint(
         lambda: ReceiveFileProtocol(),
-        local_addr=(myip, 12345))
+        local_addr=(myip, 12346))
 
 
 async def send_message():
@@ -186,7 +185,7 @@ async def send_file():
 
         transport, protocol = await loop.create_datagram_endpoint(
             lambda: SendFileProtocol(file, on_con_lost),
-            remote_addr=(ip, 12345))
+            remote_addr=(ip, 12346))
 
         try:
             await on_con_lost
