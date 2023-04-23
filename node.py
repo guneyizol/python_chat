@@ -111,7 +111,7 @@ class ReceiveFileProtocol:
 
             print(f'{peers[addr[0]]} sent the file {message["name"]}')
 
-            self.transport.sendto(json.dumps(ack.encode()), addr)
+            self.transport.sendto(json.dumps(ack).encode(), addr)
         except Exception as ex:
             print(ex)
         
