@@ -173,7 +173,7 @@ async def send_file():
     ip = await aioconsole.ainput('Enter recipient IP: ')
 
     try:
-        f = open(filename, 'b')
+        f = open(filename, 'rb')
         data = f.read()
 
         file['name'] = filename
