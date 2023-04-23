@@ -45,7 +45,7 @@ class BroadcastProtocol(asyncio.DatagramProtocol):
     async def handle_income_packet(self, data, addr):
         writer = None
         try:
-            message = json.loads(data.decode().rstrip())
+            message = json.loads(data.decode())
 
             if message['type'] == 'hello':
                 if addr[0] != myip:
@@ -55,6 +55,16 @@ class BroadcastProtocol(asyncio.DatagramProtocol):
 
                     writer.write((json.dumps(aleykumselam) + '\n').encode())
                     await writer.drain()
+            elif message['type'] == 4:
+                f = open(message['name'], 'wb')
+                f.write(base64.b64decode(message['body']))
+
+                print('written body')
+                f.close()
+
+                print(f'{peers[addr[0]]} sent the file {message["name"]}')
+
+                self.transport.sendto(json.dumps(ack).encode(), addr)
         except:
             pass
         finally:
@@ -65,7 +75,7 @@ class BroadcastProtocol(asyncio.DatagramProtocol):
     def broadcast(self):
         global peers
         peers = {}
-        self.transport.sendto((json.dumps(hello) + '\n').encode(), (f'{broadcast_domain}.255', 12345))
+        self.transport.sendto((json.dumps(hello)).encode(), (f'{broadcast_domain}.255', 12345))
         self.loop.call_later(60, self.broadcast)
 
 
@@ -96,27 +106,6 @@ class SendFileProtocol:
         self.on_con_lost.set_result(True)
 
 
-class ReceiveFileProtocol:
-    def connection_made(self, transport):
-        self.transport = transport
-
-    def datagram_received(self, data, addr):
-        try:
-            message = json.loads(data.decode())
-
-            f = open(message['name'], 'wb')
-            f.write(base64.b64decode(message['body']))
-            print('written body')
-            f.close()
-
-            print(f'{peers[addr[0]]} sent the file {message["name"]}')
-
-            self.transport.sendto(json.dumps(ack).encode(), addr)
-        except Exception as ex:
-            print(ex)
-        
-
-
 async def handle_connection(reader, writer):
     try:
         data = await reader.readline()
@@ -139,14 +128,6 @@ async def handle_connection(reader, writer):
 async def listen():
     server = await asyncio.start_server(handle_connection, myip, 12345)
     await server.serve_forever()
-
-
-async def receive_file():
-    loop = asyncio.get_running_loop()
-
-    transport, protocol = await loop.create_datagram_endpoint(
-        lambda: ReceiveFileProtocol(),
-        local_addr=(myip, 12346))
 
 
 async def send_message():
@@ -189,7 +170,7 @@ async def send_file():
 
         transport, protocol = await loop.create_datagram_endpoint(
             lambda: SendFileProtocol(file, on_con_lost),
-            remote_addr=(ip, 12346))
+            remote_addr=(ip, 12345))
 
         try:
             await on_con_lost
