@@ -87,6 +87,9 @@ class SendFileProtocol:
     
     def send_file(self):
         self.transport.sendto((json.dumps(self.message)).encode())
+    
+    def error_received(self, exc):
+        print('Error received:', exc)
 
     def connection_lost(self, exc):
         print("Connection closed")
@@ -103,13 +106,14 @@ class ReceiveFileProtocol:
 
             f = open(message['name'], 'wb')
             f.write(base64.b64decode(message.body))
+            print('written body')
             f.close()
 
             print(f'{peers[addr[0]]} sent the file {message["name"]}')
 
             self.transport.sendto(json.dumps(ack.encode()), addr)
-        except:
-            pass
+        except Exception as ex:
+            print(ex)
         
 
 
