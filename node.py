@@ -105,7 +105,7 @@ class ReceiveFileProtocol:
             message = json.loads(data.decode())
 
             f = open(message['name'], 'wb')
-            f.write(base64.b64decode(message.body))
+            f.write(base64.b64decode(message['body']))
             print('written body')
             f.close()
 
