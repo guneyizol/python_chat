@@ -109,20 +109,20 @@ class BroadcastProtocol(asyncio.DatagramProtocol):
 
 
 class SendFileProtocol:
-    def __init__(self, loop, filename, on_con_lost):
+    def __init__(self, loop, filename, packet_size, on_con_lost):
         self.loop = asyncio.get_event_loop() if loop is None else loop
 
         f = open(filename, 'rb')
         data = f.read()
 
-        n_packets = len(data) // 1500
+        n_packets = len(data) // packet_size
         
         packet_data = []
         for i in range(n_packets):
-            packet_data.append(data[1500 * i : 1500 * (i + 1)])
+            packet_data.append(data[packet_size * i : packet_size * (i + 1)])
         
-        if n_packets * 1500 < len(data):
-            packet_data.append(data[1500 * n_packets : 1500 * (n_packets + 1)])
+        if n_packets * packet_size < len(data):
+            packet_data.append(data[packet_size * n_packets : packet_size * (n_packets + 1)])
         
         packets = [{
             'type': 4,
@@ -257,7 +257,7 @@ async def send_file():
         on_con_lost = loop.create_future()
 
         transport, protocol = await loop.create_datagram_endpoint(
-            lambda: SendFileProtocol(loop, filename, on_con_lost),
+            lambda: SendFileProtocol(loop, filename, 2, on_con_lost),
             remote_addr=(ip, 12345))
         
         try:
