@@ -19,19 +19,12 @@ hello = {
     'type': 'hello'
 }
 
-file = {
-    'type': 4
-}
-
-ack = {
-    'type': 5
-}
-
 peers = {}
 
 
 class ReceiveBuffer(list):
     SIZE = 10
+
 
 
 class BroadcastProtocol(asyncio.DatagramProtocol):
@@ -41,6 +34,9 @@ class BroadcastProtocol(asyncio.DatagramProtocol):
     def connection_made(self, transport: asyncio.transports.DatagramTransport):
         self.transport = transport
         self.buffer = ReceiveBuffer()
+        self.file_data = {}
+
+        self.loop.create_task(self.read_buffer())
 
         sock = transport.get_extra_info("socket")
         sock.setsockopt(socket.SOL_SOCKET, socket.SO_BROADCAST, 1)
@@ -49,6 +45,18 @@ class BroadcastProtocol(asyncio.DatagramProtocol):
 
     def datagram_received(self, data, addr):
         self.loop.create_task(self.handle_income_packet(data, addr))
+    
+    async def read_buffer(self):
+        while self.buffer:
+            message = self.buffer[0]
+            data = base64.b64decode(message['body'])
+            self.file_data[message['seq']] = data
+
+            del self.buffer[0]
+
+            await asyncio.sleep(0)
+        
+        self.loop.call_later(1, self.read_buffer)
     
     async def handle_income_packet(self, data, addr):
         writer = None
@@ -64,16 +72,29 @@ class BroadcastProtocol(asyncio.DatagramProtocol):
                     writer.write((json.dumps(aleykumselam) + '\n').encode())
                     await writer.drain()
             elif message['type'] == 4:
+                if len(self.buffer) < self.buffer.SIZE:
+                    
+                    self.buffer.append(message)
 
-                f = open(message['name'], 'wb')
-                f.write(base64.b64decode(message['body']))
+                    print(f'{peers[addr[0]]} sent part {message["seq"]} of the file {message["name"]}')
 
-                print('written body')
-                f.close()
+                    ack = {
+                        'type': 5,
+                        'seq': message['seq'],
+                        'rwnd': self.buffer.SIZE - len(self.buffer)
+                    }
 
-                print(f'{peers[addr[0]]} sent the file {message["name"]}')
+                    self.transport.sendto(json.dumps(ack).encode(), addr)
 
-                self.transport.sendto(json.dumps(ack).encode(), addr)
+                    data = base64.b64decode(message['body'])
+
+                    if data == b'end_of_file':
+                        f = open(message['name'], 'wb')
+
+                        for i in range(1, message['seq']):
+                            f.write(self.file_data[i])
+                        
+                        f.close()               
         except:
             pass
         finally:
@@ -89,23 +110,88 @@ class BroadcastProtocol(asyncio.DatagramProtocol):
 
 
 class SendFileProtocol:
-    def __init__(self, message, on_con_lost):
-        self.message = message
+    def __init__(self, loop, filename, on_con_lost):
+        self.loop = asyncio.get_event_loop() if loop is None else loop
+
+        f = open(filename, 'rb')
+        data = f.read()
+
+        n_packets = len(data) // 1500
+        
+        packet_data = []
+        for i in range(n_packets):
+            packet_data.append(data[1500 * i : 1500 * (i + 1)])
+        
+        if n_packets * 1500 < len(data):
+            packet_data.append(data[1500 * n_packets : 1500 * (n_packets + 1)])
+        
+        packets = [{
+            'type': 4,
+            'name': filename,
+            'seq': i + 1,
+            'body': str(base64.b64encode(data))[2:-1]
+        } for i, data in enumerate(packet_data)]
+
+        self.packets = packets
+        self.end_packet = {
+            'type': 4,
+            'name': filename,
+            'seq': packets[-1]['seq'] + 1,
+            'body': str(base64.b64encode(b'end_of_file'))[2:-1]
+        }
+
+        self.in_flight = 0
+        self.acked = []
+        self.rwnd = 0
+
         self.on_con_lost = on_con_lost
 
     def connection_made(self, transport):
         self.transport = transport
-        self.send_file()
+        self.loop.create_task(self.send_file())
 
     def datagram_received(self, data, addr):
         message = json.loads(data.decode())
 
         print(f'received message of type {message["type"]} from {addr[0]}')
 
-        self.transport.close()
+        if message['seq'] == self.end_packet['seq']:
+            self.transport.close()
+        
+        self.acked.append(message['seq'])
+        self.rwnd = message['rwnd']
+
+    async def send_file(self):
+        await self.send_packet(self.packets[0])
+
+        packet_tasks = []
+        while len(self.acked) < len(self.packets):
+            next_packets = [packet
+                            for packet in self.packets
+                            if packet['seq'] not in self.acked][:self.rwnd - self.in_flight]
+
+            packet_tasks.extend(self.send_packet(packet) for packet in next_packets)
+        
+        await asyncio.gather(*packet_tasks)
+
+        await self.send_packet(self.end_packet)
+
+            
+    async def send_packet(self, packet):
+        self.in_flight += 1
+        self.transport.sendto((json.dumps(packet)).encode())
+
+        try:
+            await asyncio.wait_for(self.wait_ack(packet['seq']), timeout=1)
+        except asyncio.TimeoutError:
+            self.in_flight -= 1
+            await self.send_packet(packet)
     
-    def send_file(self):
-        self.transport.sendto((json.dumps(self.message)).encode())
+    async def wait_ack(self, seq):
+        while seq not in self.acked:
+            await asyncio.sleep(0)
+        
+        self.in_flight -= 1
     
     def error_received(self, exc):
         print('Error received:', exc)
@@ -167,26 +253,14 @@ async def send_file():
     ip = await aioconsole.ainput('Enter recipient IP: ')
 
     try:
-        f = open(filename, 'rb')
-        data = f.read()
-
-        n_packets = len(data) // 15000
-        
-        packets = []
-        for i in range(n_packets):
-            packets.append(data[15000 * i : 15000 * (i + 1)])
-
-        file['name'] = filename
-        file['body'] = str(base64.b64encode(data))[2:-1]
-
         loop = asyncio.get_running_loop()
 
         on_con_lost = loop.create_future()
 
         transport, protocol = await loop.create_datagram_endpoint(
-            lambda: SendFileProtocol(file, on_con_lost),
+            lambda: SendFileProtocol(loop, filename, on_con_lost),
             remote_addr=(ip, 12345))
-
+        
         try:
             await on_con_lost
         finally:
@@ -206,12 +280,12 @@ async def control():
             if not peers:
                 await aioconsole.aprint('There are no available recipients. Try later.')
             else:
-                await asyncio.create_task(send_message())
+                await send_message()
         elif key == 'f':
             if not peers:
                 await aioconsole.aprint('There are no available recipients. Try later.')
             else:
-                await asyncio.create_task(send_file())
+                await send_file()
         elif key == 'a':
             if not peers:
                 await aioconsole.aprint('There are no available recipients.')
@@ -242,14 +316,14 @@ async def main():
     bd = await aioconsole.ainput('Enter the broadcast domain (default is 192.168.1): ')
     broadcast_domain = bd if bd else '192.168.1'
 
-    listen_task = asyncio.create_task(listen())
-    hello_task = asyncio.create_task(loop.create_datagram_endpoint(
+    listen_coro = listen()
+    hello_coro = loop.create_datagram_endpoint(
         lambda: BroadcastProtocol(loop=loop),
         local_addr=('0.0.0.0', 12345),
         allow_broadcast=True
-    ))
-    control_task = asyncio.create_task(control())
-    await asyncio.gather(listen_task, hello_task, control_task)
+    )
+    control_coro = control()
+    await asyncio.gather(listen_coro, hello_coro, control_coro)
 
 
 asyncio.run(main())
