@@ -36,7 +36,6 @@ class ReceiveBuffer(list):
     SIZE = 10
 
 
-
 class BroadcastProtocol(asyncio.DatagramProtocol):
     def __init__(self, *, loop = None):
         self.loop = asyncio.get_event_loop() if loop is None else loop
@@ -210,6 +209,7 @@ class SendFileProtocol:
         while seq not in self.acked:
             await asyncio.sleep(0)
         
+        print(f'got acked for {seq}')
         del self.in_flight[self.in_flight.index(seq)]
     
     def error_received(self, exc):
@@ -245,7 +245,9 @@ async def listen():
 
 
 async def send_message():
-    ip = await aioconsole.ainput('Enter recipient IP: ')
+    name = await aioconsole.ainput('Enter recipient name: ')
+    ip = list(peers.keys())[list(peers.values()).index(name)]
+    
     message = await aioconsole.ainput('Enter your message (end it with a newline): ')
 
     writer = None
@@ -269,8 +271,9 @@ async def send_message():
 
 async def send_file():
     filename = await aioconsole.ainput('Enter the filename: ')
-    ip = await aioconsole.ainput('Enter recipient IP: ')
+    name = await aioconsole.ainput('Enter recipient name: ')
 
+    ip = list(peers.keys())[list(peers.values()).index(name)]
     try:
         loop = asyncio.get_running_loop()
 
