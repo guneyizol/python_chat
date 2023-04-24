@@ -36,10 +36,10 @@ class BroadcastProtocol(asyncio.DatagramProtocol):
         self.buffer = ReceiveBuffer()
         self.file_data = {}
 
-        self.loop.create_task(self.read_buffer())
-
         sock = transport.get_extra_info("socket")
         sock.setsockopt(socket.SOL_SOCKET, socket.SO_BROADCAST, 1)
+
+        self.loop.create_task(self.read_buffer())
 
         self.broadcast()
 
@@ -47,16 +47,15 @@ class BroadcastProtocol(asyncio.DatagramProtocol):
         self.loop.create_task(self.handle_income_packet(data, addr))
     
     async def read_buffer(self):
-        while self.buffer:
-            message = self.buffer[0]
-            data = base64.b64decode(message['body'])
-            self.file_data[message['seq']] = data
+        while True:
+            if self.buffer:
+                message = self.buffer[0]
+                data = base64.b64decode(message['body'])
+                self.file_data[message['seq']] = data
 
-            del self.buffer[0]
-
-            await asyncio.sleep(0)
-        
-        self.loop.call_later(1, self.read_buffer)
+                del self.buffer[0]
+            
+            await asyncio.sleep(0)     
     
     async def handle_income_packet(self, data, addr):
         writer = None
