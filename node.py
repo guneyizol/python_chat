@@ -100,6 +100,8 @@ class BroadcastProtocol(asyncio.DatagramProtocol):
                             f.write(self.file_data[i])
                         
                         f.close()
+
+                        print(f'{peers[addr[0]]} sent the file {message["name"]}.')
         except:
             pass
         finally:
@@ -117,6 +119,8 @@ class BroadcastProtocol(asyncio.DatagramProtocol):
 class SendFileProtocol:
     def __init__(self, loop, filename, packet_size, on_con_lost):
         self.loop = asyncio.get_event_loop() if loop is None else loop
+
+        self.filename = filename
 
         f = open(filename, 'rb')
         data = f.read()
@@ -183,6 +187,8 @@ class SendFileProtocol:
         await asyncio.gather(*packet_tasks)
         
         await self.send_packet(self.end_packet)
+
+        print(f'{self.filename} is sent.')
         
     async def send_packet(self, packet):
         self.in_flight.append(packet['seq'])
