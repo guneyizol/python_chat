@@ -81,7 +81,6 @@ class BroadcastProtocol(asyncio.DatagramProtocol):
                     writer.write((json.dumps(aleykumselam) + '\n').encode())
                     await writer.drain()
             elif message['type'] == 4:
-                print(f'got packet {message["seq"]}')
 
                 if len(self.buffer) < self.buffer.SIZE:
                     self.buffer.append(message)
@@ -103,8 +102,6 @@ class BroadcastProtocol(asyncio.DatagramProtocol):
                             f.write(self.file_data[i])
                         
                         f.close()
-
-                    print(len(self.buffer))   
         except:
             pass
         finally:
@@ -174,8 +171,6 @@ class SendFileProtocol:
     async def send_file(self):
         await self.send_packet(self.packets[0])
 
-        print('first packet acked')
-
         packet_tasks = []
         while len(self.acked) < len(self.packets):
             next_packets = [packet
@@ -186,8 +181,7 @@ class SendFileProtocol:
             packet_tasks.extend(asyncio.create_task(self.send_packet(packet)) for packet in next_packets)
 
             await asyncio.sleep(0)
-        
-        print('waiting other packets')
+
         await asyncio.gather(*packet_tasks)
         
         await self.send_packet(self.end_packet)
@@ -196,8 +190,6 @@ class SendFileProtocol:
         self.in_flight.append(packet['seq'])
 
         self.transport.sendto((json.dumps(packet)).encode())
-
-        print(f'sent packet {packet["seq"]}')
 
         try:
             await asyncio.wait_for(self.wait_ack(packet['seq']), timeout=1)
@@ -209,14 +201,12 @@ class SendFileProtocol:
         while seq not in self.acked:
             await asyncio.sleep(0)
         
-        print(f'got acked for {seq}')
         del self.in_flight[self.in_flight.index(seq)]
     
     def error_received(self, exc):
         print('Error received:', exc)
 
     def connection_lost(self, exc):
-        print("Connection closed")
         self.on_con_lost.set_result(True)
 
 
@@ -247,7 +237,7 @@ async def listen():
 async def send_message():
     name = await aioconsole.ainput('Enter recipient name: ')
     ip = list(peers.keys())[list(peers.values()).index(name)]
-    
+
     message = await aioconsole.ainput('Enter your message (end it with a newline): ')
 
     writer = None
@@ -270,8 +260,8 @@ async def send_message():
 
 
 async def send_file():
-    filename = await aioconsole.ainput('Enter the filename: ')
     name = await aioconsole.ainput('Enter recipient name: ')
+    filename = await aioconsole.ainput('Enter the filename: ')
 
     ip = list(peers.keys())[list(peers.values()).index(name)]
     try:
