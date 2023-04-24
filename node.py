@@ -19,8 +19,6 @@ s.close()
 
 broadcast_domain = myip[:myip.rfind('.')]
 
-print(myip, broadcast_domain)
-
 aleykumselam = {
     'type': 'aleykumselam'
 }
