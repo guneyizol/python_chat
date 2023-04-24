@@ -163,14 +163,16 @@ class SendFileProtocol:
     async def send_file(self):
         await self.send_packet(self.packets[0])
 
+        print('first packet acked')
         packet_tasks = []
         while len(self.acked) < len(self.packets):
             next_packets = [packet
-                            for packet in self.packets
+                            for packet in self.packets[1:]
                             if packet['seq'] not in self.acked][:self.rwnd - self.in_flight]
 
             packet_tasks.extend(self.send_packet(packet) for packet in next_packets)
         
+        print('waiting other packets')
         await asyncio.gather(*packet_tasks)
 
         await self.send_packet(self.end_packet)
