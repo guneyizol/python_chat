@@ -8,8 +8,17 @@ import socket
 
 
 myname = 'name'
-myip = '192.168.1.7'
-broadcast_domain = '192.168.1'
+
+import socket
+s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+s.connect(("8.8.8.8", 80))
+s.close()
+
+myip = s.getsockname()[0]
+
+broadcast_domain = myip[:myip.rfind('.')]
+
+print(myip, broadcast_domain)
 
 aleykumselam = {
     'type': 'aleykumselam'
@@ -55,6 +64,7 @@ class BroadcastProtocol(asyncio.DatagramProtocol):
 
                 del self.buffer[0]
             
+            
             await asyncio.sleep(0)     
     
     async def handle_income_packet(self, data, addr):
@@ -72,12 +82,9 @@ class BroadcastProtocol(asyncio.DatagramProtocol):
                     await writer.drain()
             elif message['type'] == 4:
                 print(f'got packet {message["seq"]}')
-                
-                if len(self.buffer) < self.buffer.SIZE:
-                    
-                    self.buffer.append(message)
 
-                    print(f'{peers[addr[0]]} sent part {message["seq"]} of the file {message["name"]}')
+                if len(self.buffer) < self.buffer.SIZE:
+                    self.buffer.append(message)
 
                     ack = {
                         'type': 5,
@@ -95,7 +102,9 @@ class BroadcastProtocol(asyncio.DatagramProtocol):
                         for i in range(1, message['seq']):
                             f.write(self.file_data[i])
                         
-                        f.close()               
+                        f.close()
+
+                    print(len(self.buffer))   
         except:
             pass
         finally:
@@ -141,7 +150,7 @@ class SendFileProtocol:
             'body': str(base64.b64encode(b'end_of_file'))[2:-1]
         }
 
-        self.in_flight = 0
+        self.in_flight = []
         self.acked = []
         self.rwnd = 0
 
@@ -154,47 +163,53 @@ class SendFileProtocol:
     def datagram_received(self, data, addr):
         message = json.loads(data.decode())
 
-        print(f'received message of type {message["type"]} from {addr[0]}')
-
         if message['seq'] == self.end_packet['seq']:
             self.transport.close()
         
-        self.acked.append(message['seq'])
+        if message['seq'] not in self.acked:
+            self.acked.append(message['seq'])
+        
         self.rwnd = message['rwnd']
 
     async def send_file(self):
         await self.send_packet(self.packets[0])
 
         print('first packet acked')
+
         packet_tasks = []
         while len(self.acked) < len(self.packets):
             next_packets = [packet
                             for packet in self.packets[1:]
-                            if packet['seq'] not in self.acked][:self.rwnd - self.in_flight]
+                            if packet['seq'] not in self.acked
+                                and packet['seq'] not in self.in_flight][:self.rwnd - len(self.in_flight)]
 
-            packet_tasks.extend(self.send_packet(packet) for packet in next_packets)
+            packet_tasks.extend(asyncio.create_task(self.send_packet(packet)) for packet in next_packets)
+
+            await asyncio.sleep(0)
         
         print('waiting other packets')
         await asyncio.gather(*packet_tasks)
-
+        
         await self.send_packet(self.end_packet)
-
-            
+        
     async def send_packet(self, packet):
-        self.in_flight += 1
+        self.in_flight.append(packet['seq'])
+
         self.transport.sendto((json.dumps(packet)).encode())
+
+        print(f'sent packet {packet["seq"]}')
 
         try:
             await asyncio.wait_for(self.wait_ack(packet['seq']), timeout=1)
         except asyncio.TimeoutError:
-            self.in_flight -= 1
+            del self.in_flight[self.in_flight.index(packet['seq'])]
             await self.send_packet(packet)
     
     async def wait_ack(self, seq):
         while seq not in self.acked:
             await asyncio.sleep(0)
         
-        self.in_flight -= 1
+        del self.in_flight[self.in_flight.index(seq)]
     
     def error_received(self, exc):
         print('Error received:', exc)
@@ -261,7 +276,7 @@ async def send_file():
         on_con_lost = loop.create_future()
 
         transport, protocol = await loop.create_datagram_endpoint(
-            lambda: SendFileProtocol(loop, filename, 5, on_con_lost),
+            lambda: SendFileProtocol(loop, filename, 1500, on_con_lost),
             remote_addr=(ip, 12345))
         
         try:
@@ -307,17 +322,10 @@ async def main():
     loop = asyncio.get_running_loop()
     loop.add_signal_handler(signal.SIGINT, keyboardInterruptHandler)
 
-    global myip
-    myip = await aioconsole.ainput('Enter your ip: ')
-
     global myname
     myname = await aioconsole.ainput('Enter your name: ')
     hello['myname'] = myname
     aleykumselam['myname'] = myname
-
-    global broadcast_domain
-    bd = await aioconsole.ainput('Enter the broadcast domain (default is 192.168.1): ')
-    broadcast_domain = bd if bd else '192.168.1'
 
     listen_coro = listen()
     hello_coro = loop.create_datagram_endpoint(
