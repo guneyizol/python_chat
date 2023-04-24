@@ -257,7 +257,7 @@ async def send_file():
         on_con_lost = loop.create_future()
 
         transport, protocol = await loop.create_datagram_endpoint(
-            lambda: SendFileProtocol(loop, filename, 2, on_con_lost),
+            lambda: SendFileProtocol(loop, filename, 5, on_con_lost),
             remote_addr=(ip, 12345))
         
         try:
