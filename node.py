@@ -127,9 +127,9 @@ class SendFileProtocol:
         packets = [{
             'type': 4,
             'name': filename,
-            'seq': i + 1,
+            'seq': i,
             'body': str(base64.b64encode(data))[2:-1]
-        } for i, data in enumerate(packet_data)]
+        } for i, data in enumerate(packet_data, start=1)]
 
         self.packets = packets
         self.end_packet = {
