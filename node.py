@@ -29,14 +29,22 @@ ack = {
 
 peers = {}
 
+
+class ReceiveBuffer(list):
+    SIZE = 10
+
+
 class BroadcastProtocol(asyncio.DatagramProtocol):
     def __init__(self, *, loop = None):
         self.loop = asyncio.get_event_loop() if loop is None else loop
 
     def connection_made(self, transport: asyncio.transports.DatagramTransport):
         self.transport = transport
+        self.buffer = ReceiveBuffer()
+
         sock = transport.get_extra_info("socket")
         sock.setsockopt(socket.SOL_SOCKET, socket.SO_BROADCAST, 1)
+
         self.broadcast()
 
     def datagram_received(self, data, addr):
@@ -56,6 +64,7 @@ class BroadcastProtocol(asyncio.DatagramProtocol):
                     writer.write((json.dumps(aleykumselam) + '\n').encode())
                     await writer.drain()
             elif message['type'] == 4:
+
                 f = open(message['name'], 'wb')
                 f.write(base64.b64decode(message['body']))
 
@@ -160,6 +169,12 @@ async def send_file():
     try:
         f = open(filename, 'rb')
         data = f.read()
+
+        n_packets = len(data) // 15000
+        
+        packets = []
+        for i in range(n_packets):
+            packets.append(data[15000 * i : 15000 * (i + 1)])
 
         file['name'] = filename
         file['body'] = str(base64.b64encode(data))[2:-1]
