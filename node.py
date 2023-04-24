@@ -71,6 +71,8 @@ class BroadcastProtocol(asyncio.DatagramProtocol):
                     writer.write((json.dumps(aleykumselam) + '\n').encode())
                     await writer.drain()
             elif message['type'] == 4:
+                print(f'got packet {message["seq"]}')
+                
                 if len(self.buffer) < self.buffer.SIZE:
                     
                     self.buffer.append(message)
